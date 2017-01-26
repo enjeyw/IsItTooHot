@@ -1,6 +1,5 @@
 from google.cloud import bigquery
-import json, datetime, os, pickle
-import numpy as np
+import json, datetime, os
 from urllib import request as urllibrequest, parse
 import config
 
@@ -39,8 +38,6 @@ class WeatherQuery():
             if today_max > hist_max[0]:
                 surpass_count += 1
 
-        # pickle.dump( [item[0] for item in historical_maxes], open( "histogram.p", "wb" ) )
-
         if units == 'Fahrenheit':
             today_max = today_max * 1.8 + 32
             hist_temps = [round(item[0] * 1.8 + 32 ,2) for item in historical_maxes[::-1]]
@@ -59,8 +56,6 @@ class WeatherQuery():
         except ZeroDivisionError:
             message = "Sorry, not enough data for your city. Perhaps the records have combusted?"
             return {'p_rank': 9001, 't_max': 9001, 'message': message}
-
-
 
 
     def compare_yahoo_weather(self,lat,lon):
@@ -235,87 +230,6 @@ class WeatherQuery():
 
         return result_list
 
-    def query_noaa_closest_station(self, lat, long):
-        query_results = self.bqclient.run_sync_query("""
-            SELECT
-              id,
-              latitude,
-              longitude,
-              firstyear,
-              lastyear,
-              POW((latitude - %s),2) + POW((longitude - %s),2) as OrderCondition
-            FROM
-              `bigquery-public-data.ghcn_d.ghcnd_inventory`
-            WHERE
-              latitude > %s - 0.2
-              AND latitude < %s + 0.2
-              AND longitude > %s - 0.2
-              AND longitude < %s + 0.2
-              AND lastyear > 2014
-              AND firstyear < 1950
-            ORDER BY
-              OrderCondition ASC;
-            """ % ( lat, long, lat, lat, long, long,))
-
-        query_results.use_legacy_sql = False
-        query_results.run()
-        page_token = None
-
-        rows, total_rows, page_token = query_results.fetch_data(1,page_token=page_token)
-
-        print(rows)
-
-        return rows[0][0]
-
-    def query_noaa_historical_weather(self,station_id):
-        query_results = self.bqclient.run_sync_query("""
-            SELECT
-              date,
-              MAX(tmax) AS tmax
-            FROM (
-              SELECT
-                STRING(date) AS date,
-                IF (element = 'PRCP', value/10, NULL) AS prcp,
-                IF (element = 'TMIN', value/10, NULL) AS tmin,
-                IF (element = 'TMAX', value/10, NULL) AS tmax
-              FROM
-                TABLE_QUERY([bigquery-public-data:ghcn_d],
-                   'REGEXP_MATCH(table_id, r"^ghcnd_[\d]{4}")')
-              WHERE
-                id = '%s'
-                AND qflag IS NULL
-                AND value IS NOT NULL
-                AND DAYOFYEAR(CURRENT_DATE()) == DAYOFYEAR(date))
-            GROUP BY
-              date
-            ORDER BY
-              date ASC
-            """ % (station_id))
-
-        # Use standard SQL syntax for queries.
-        # See: https://cloud.google.com/bigquery/sql-reference/
-        query_results.use_legacy_sql = True
-
-        query_results.run()
-
-        # Drain the query results by requesting a page at a time.
-        page_token = None
-
-        while True:
-            rows, total_rows, page_token = query_results.fetch_data(
-                max_results=10,
-                page_token=page_token)
-
-            for row in rows:
-                print(row)
-
-            if not page_token:
-                break
-
-    def find_historical_weather_for_coords(self,lat,long):
-        station_id = self.query_noaa_closest_station(lat,long)
-        self.query_noaa_historical_weather(station_id)
-
     def __init__(self):
 
         self.bqclient = bigquery.Client()
@@ -323,6 +237,6 @@ class WeatherQuery():
 if __name__ == '__main__':
     bq = WeatherQuery()
     # bq.yahoo_weather('Melbourne', 'Australia')
-    bq.query_noaa_gsod_weather(-37.8, 144.9)
+    # bq.query_noaa_gsod_weather(-37.8, 144.9)
     # bq.query_noaa_historical_weather('ASN00086038')
     # bq.query_noaa_closest_station(41.8, -87.6)
