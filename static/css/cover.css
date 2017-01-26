@@ -205,3 +205,8 @@ body {
 .fader.fadedIn{
     opacity: 1;
 }
+
+.row {
+    margin-right: -0px;
+    margin-left: -0px;
+}

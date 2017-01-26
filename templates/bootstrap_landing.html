@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-<!-- saved from url=(0039)http://getbootstrap.com/examples/cover/ -->
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
@@ -26,6 +25,22 @@
 
     </script>
 
+    <script type="text/javascript">
+        window.heap = window.heap || [], heap.load = function (e, t) {
+            window.heap.appid = e, window.heap.config = t = t || {};
+            var r = t.forceSSL || "https:" === document.location.protocol, a = document.createElement("script");
+            a.type = "text/javascript", a.async = !0, a.src = (r ? "https:" : "http:") + "//cdn.heapanalytics.com/js/heap-" + e + ".js";
+            var n = document.getElementsByTagName("script")[0];
+            n.parentNode.insertBefore(a, n);
+            for (var o = function (e) {
+                return function () {
+                    heap.push([e].concat(Array.prototype.slice.call(arguments, 0)))
+                }
+            }, p = ["addEventProperties", "addUserProperties", "clearEventProperties", "identify", "removeEventProperty", "setEventProperties", "track", "unsetEventProperty"], c = 0; c < p.length; c++)heap[p[c]] = o(p[c])
+        };
+        heap.load("3225314957");
+    </script>
+
     <title>Is it too hot today?</title>
 
     <!-- Bootstrap core CSS -->
@@ -35,13 +50,22 @@
     <link href="../static/css/ie10-viewport-bug-workaround.css" rel="stylesheet">
 
     <!-- Custom styles for this template -->
-    <link href="../static/css/cover.css?v=0.6" rel="stylesheet">
+    <link href="../static/css/cover.css?v=0.7" rel="stylesheet">
 
     <link rel='shortcut icon' type='image/x-icon' href='../static/favicon.png'/>
 
 </head>
 
 <body>
+<div id="fb-root"></div>
+<script>(function (d, s, id) {
+    var js, fjs = d.getElementsByTagName(s)[0];
+    if (d.getElementById(id)) return;
+    js = d.createElement(s);
+    js.id = id;
+    js.src = "//connect.facebook.net/en_US/sdk.js#xfbml=1&version=v2.8";
+    fjs.parentNode.insertBefore(js, fjs);
+}(document, 'script', 'facebook-jssdk'));</script>
 
 <div class="site-wrapper">
 
@@ -54,7 +78,7 @@
             <h1 class="cover-heading">Is it too hot today?</h1>
             <div class="row">
                 <div class="col-xs-10 col-xs-offset-1">
-                    <p class="lead">It may not <i> feel </i> hot, but how does today's weather stack up against the same
+                    <p class="lead">How does today's weather stack up against the same
                         date historically? <br>
                         Enter your city below to see whether it's abnormally hot today.</p>
                 </div>
@@ -67,7 +91,7 @@
                 </div>
             </div>
             <div class="row">
-                <div class="col-md-10 col-md-offset-1">
+                <div class="col-xs-10 col-xs-offset-1">
                     <p class="lead" id="message"><span class="element"><br></span></p>
                 </div>
             </div>
@@ -80,16 +104,33 @@
                     <span id="explanation" class=""></span>
                 </div>
             </div>
+            <div class="row">
+                <div class="col-xs-10 col-xs-offset-1">
+                    <canvas id="summary" class="plot"></canvas>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-xs-10 col-xs-offset-1">
+                    <a id="facebookshare" href="#" style="display: none;" class="pull-right"
+                       onclick="window.open($('#facebookshare').data('href'),'Facebook Share','width=670,height=365');">
+                        <i class="fa fa-facebook-square" aria-hidden="true"></i> Share your result!</a>
+                </div>
+            </div>
+
+
         </div>
 
         <div class="mastfoot">
-        <div class="inner">
-        <p> <a href="mailto:enjeyw@gmail.com">Contact</a>
+            <div class="inner">
+                <p id="contactdeets"><a href="mailto:enjeyw@gmail.com">Contact</a></p>
+                <div class="fb-share-button" data-href="http://www.isittoohot.com" data-layout="icon_link"
+                     data-mobile-iframe="true"><a class="fb-xfbml-parse-ignore" target="_blank"
+                                                  href="https://www.facebook.com/sharer/sharer.php?u=http%3A%2F%2Fwww.isittoohot.com%2F&amp;src=sdkpreparse">Share</a>
+                </div>
+            </div>
         </div>
-        </div>
-
+        <p style="color: #696969;   ">Sourced from the NOAA GSOD dataset</p>
     </div>
-
 </div>
 
 
@@ -97,12 +138,38 @@
 <script src="https://code.jquery.com/jquery-3.1.1.min.js"></script>
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC7m9W_K_QUk20zvWUZlBI6r5gX0g7qWSc&libraries=places"
         type="text/javascript"></script>
-<script src="../static/js/getweathercomparison.js?v=1.1.7"></script>
+<script src="../static/js/getweathercomparison.js?v=1.3.03"></script>
 <script src="../static/js/bootstrap.min.js"></script>
 <script src="../static/js/typed.js"></script>
+<script src="https://use.fontawesome.com/36df3a5521.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.4.0/Chart.bundle.min.js"></script>
 <!-- IE10 viewport hack for Surface/desktop Windows 8 bug -->
 <script src="../static/js/ie10-viewport-bug-workaround.js"></script>
 
 
+<!-- Needs to be in html for Jinja2 to params work -->
+<script>
+    $(document).ready(function () {
+        var prelink = "{{ request.args.get('city') }}"
+
+        if (prelink != 'None') {
+            $("#autocomplete").val("{{ request.args.get('city') }}");
+
+
+            $.ajax({
+                url: "http://maps.google.com/maps/api/geocode/json?address={{ request.args.get('city') }}",
+                success: function (result) {
+                    var lat = result.results[0].geometry.location.lat,
+                            lng = result.results[0].geometry.location.lng;
+
+                    fillInAddress(lat, lng)
+                }
+            });
+        }
+
+
+    });
+
+</script>
 </body>
 </html>

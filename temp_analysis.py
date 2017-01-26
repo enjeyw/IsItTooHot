@@ -1,5 +1,6 @@
 from google.cloud import bigquery
-import json, datetime, os
+import json, datetime, os, pickle
+import numpy as np
 from urllib import request as urllibrequest, parse
 import config
 
@@ -24,10 +25,7 @@ class WeatherQuery():
         elif percentile_rank == 100:
             return "We've broken a record, but not a good kind"
 
-
-
-
-    def compare_weather(self,lat,lon, nerdmode = False):
+    def compare_weather(self,lat,lon, units = 'Celsius', nerdmode = False):
 
         today_max = self.open_weathermap_weather(lat,lon)
 
@@ -41,14 +39,26 @@ class WeatherQuery():
             if today_max > hist_max[0]:
                 surpass_count += 1
 
+        # pickle.dump( [item[0] for item in historical_maxes], open( "histogram.p", "wb" ) )
+
+        if units == 'Fahrenheit':
+            today_max = today_max * 1.8 + 32
+            hist_temps = [round(item[0] * 1.8 + 32 ,2) for item in historical_maxes[::-1]]
+            hist_temps.append(round(today_max,2))
+        else:
+            hist_temps = [round(item[0] ,2) for item in historical_maxes[::-1]]
+            hist_temps.append(round(today_max,2))
+
+        years = [int(item[1]) for item in historical_maxes[::-1]]
+        years.append(2017)
+
         try:
             percentile_rank = surpass_count/len(historical_maxes) * 100
             message = self.explanation_sentence(percentile_rank)
-            return {'p_rank': percentile_rank, 't_max': today_max, 'message': message}
+            return {'p_rank': percentile_rank, 't_max': today_max, 'message': message, 'hist_temps': hist_temps, 'years': years}
         except ZeroDivisionError:
             message = "Sorry, not enough data for your city. Perhaps the records have combusted?"
             return {'p_rank': 9001, 't_max': 9001, 'message': message}
-
 
 
 
@@ -93,7 +103,7 @@ class WeatherQuery():
 
         return max(candidate_temps)
 
-    def query_noaa_gsod_weather(self, lat, lon):
+    def query_noaa_gsod_weather(self, lat, lon, range = 0.5):
         result_list = []
 
         query_results = self.bqclient.run_sync_query("""
@@ -139,10 +149,10 @@ class WeatherQuery():
                 )
             WHERE
               rn=1
-              AND distance < 0.1
+              AND distance < %s
             ORDER BY
               YEAR DESC
-            """ % (lat, lon))
+            """ % (lat, lon, range))
 
         query_results.use_legacy_sql = True
         query_results.run()
@@ -161,13 +171,13 @@ class WeatherQuery():
 
         return result_list
 
-    def query_noaa_ghcn_weather(self, lat, lon):
+    def query_noaa_ghcn_weather(self, lat, lon, range = 0.5):
         result_list = []
 
         query_results = self.bqclient.run_sync_query("""
 
             SELECT
-              tmax as celsius
+              tmax as celsius,
               year,
               name,
               lat,
@@ -202,10 +212,10 @@ class WeatherQuery():
                 )
             WHERE
               rn=1
-              AND distance < 0.1
+              AND distance < %s
             ORDER BY
               Year DESC
-            """ % (lat, lon))
+            """ % (lat, lon, range))
 
         query_results.use_legacy_sql = True
         query_results.run()
